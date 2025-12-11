@@ -14,8 +14,8 @@ from mtz_cplex import solve_mtz_cplex
 # PEQUEÑAS_IDS = [20, 11, 1, 9]
 # MEDIANAS_IDS = [0, 7, 8]
 # GRANDES_IDS = [3, 4, 2]
-PEQUEÑAS_IDS = [20, 11]
-MEDIANAS_IDS = []
+PEQUEÑAS_IDS = [20, 11, 1, 9]
+MEDIANAS_IDS = [0]
 GRANDES_IDS = []
 
 TIEMPO_LIMITE_SEC = 3600
