@@ -11,9 +11,12 @@ from mtz_cplex import solve_mtz_cplex
 # 1. CONFIGURACIÓN GLOBAL (IDs de Instancias)
 # ==========================================
 # Selecciona los IDs que quieres correr (deben existir en las carpetas)
-PEQUEÑAS_IDS = [20, 11, 1, 9]
-MEDIANAS_IDS = [0, 7, 8]
-GRANDES_IDS = [3, 4, 2]
+# PEQUEÑAS_IDS = [20, 11, 1, 9]
+# MEDIANAS_IDS = [0, 7, 8]
+# GRANDES_IDS = [3, 4, 2]
+PEQUEÑAS_IDS = [20, 11]
+MEDIANAS_IDS = []
+GRANDES_IDS = []
 
 TIEMPO_LIMITE_SEC = 3600
 ARCHIVO_RESULTADOS = "resultados_atsp.csv"
@@ -22,19 +25,19 @@ CARPETAS_DATA = ["pequeñas", "medianas", "grandes"]
 # ==========================================
 # 2. PLACEHOLDERS DE SOLVERS
 # ==========================================
-def solve_mtz_gurobi(num_nodos, matriz_distancias, tiempo_limite):
-    return {
-        "NumVars": 0, "NumConstrs": 0, "TimeSeconds": 0.0,
-        "MIPGap": 100.0, "BestBound": 0.0, "ObjectiveValue": 0.0,
-        "Status": "NOT_IMPLEMENTED"
-    }
+# def solve_mtz_gurobi(num_nodos, matriz_distancias, tiempo_limite):
+#     return {
+#         "NumVars": 0, "NumConstrs": 0, "TimeSeconds": 0.0,
+#         "MIPGap": 100.0, "BestBound": 0.0, "ObjectiveValue": 0.0,
+#         "Status": "NOT_IMPLEMENTED"
+#     }
 
-def solve_mtz_cplex(num_nodos, matriz_distancias, tiempo_limite):
-    return {
-        "NumVars": 0, "NumConstrs": 0, "TimeSeconds": 0.0,
-        "MIPGap": 100.0, "BestBound": 0.0, "ObjectiveValue": 0.0,
-        "Status": "NOT_IMPLEMENTED"
-    }
+# def solve_mtz_cplex(num_nodos, matriz_distancias, tiempo_limite):
+#     return {
+#         "NumVars": 0, "NumConstrs": 0, "TimeSeconds": 0.0,
+#         "MIPGap": 100.0, "BestBound": 0.0, "ObjectiveValue": 0.0,
+#         "Status": "NOT_IMPLEMENTED"
+#     }
 
 def solve_gg_gurobi(num_nodos, matriz_distancias, tiempo_limite):
     return {
