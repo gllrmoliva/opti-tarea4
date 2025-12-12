@@ -1,5 +1,6 @@
 import gurobipy as gp
 from gurobipy import GRB
+from gurobi_setup import create_env
 
 def solve_gg_gurobi(num_nodos, matriz_distancias, tiempo_limite):
     """
@@ -7,7 +8,7 @@ def solve_gg_gurobi(num_nodos, matriz_distancias, tiempo_limite):
     Esta es una formulación de flujo de una mercancía (Single Commodity Flow).
     """
     try:
-        with gp.Env(empty=True) as env:
+        with create_env() as env:
             env.setParam("OutputFlag", 0)
             env.start()
             with gp.Model("ATSP_GG", env=env) as m:

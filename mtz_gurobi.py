@@ -1,5 +1,6 @@
 import gurobipy as gp
 from gurobipy import GRB
+from gurobi_setup import create_env
 
 def solve_mtz_gurobi(num_nodos, matriz_distancias, tiempo_limite):
     """
@@ -8,7 +9,7 @@ def solve_mtz_gurobi(num_nodos, matriz_distancias, tiempo_limite):
     try:
         # Crear entorno y modelo
         # Usamos 'with' o dispose() para liberar licencias al terminar
-        with gp.Env(empty=True) as env:
+        with create_env() as env:
             env.setParam("OutputFlag", 0)  # Silenciar log en consola
             env.start()
             with gp.Model("ATSP_MTZ", env=env) as m:
