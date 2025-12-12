@@ -9,7 +9,7 @@ def solve_gg_gurobi(num_nodos, matriz_distancias, tiempo_limite):
     """
     try:
         with create_env() as env:
-            env.setParam("OutputFlag", 0)
+            env.setParam("OutputFlag", 1)
             env.start()
             with gp.Model("ATSP_GG", env=env) as m:
                 

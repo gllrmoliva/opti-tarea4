@@ -10,7 +10,7 @@ def solve_mtz_gurobi(num_nodos, matriz_distancias, tiempo_limite):
         # Crear entorno y modelo
         # Usamos 'with' o dispose() para liberar licencias al terminar
         with create_env() as env:
-            env.setParam("OutputFlag", 0)  # Silenciar log en consola
+            env.setParam("OutputFlag", 1)  # Silenciar log en consola
             env.start()
             with gp.Model("ATSP_MTZ", env=env) as m:
                 
