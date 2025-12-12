@@ -1,99 +1,138 @@
-import pandas as pd
 import os
 import csv
-import ast
 from datetime import datetime
+import glob
+import sys
 
 from mtz_gurobi import solve_mtz_gurobi
 from mtz_cplex import solve_mtz_cplex
+from mtz_cbc import solve_mtz_cbc
+from gg_gurobi import solve_gg_gurobi
+from gg_cplex import solve_gg_cplex
+from gg_cbc import solve_gg_cbc
 
 # ==========================================
-# 1. CONFIGURACIÓN GLOBAL (IDs de Instancias)
+# 1. CONFIGURACIÓN GLOBAL
 # ==========================================
-# Selecciona los IDs que quieres correr (deben existir en las carpetas)
-# PEQUEÑAS_IDS = [20, 11, 1, 9]
-# MEDIANAS_IDS = [0, 7, 8]
-# GRANDES_IDS = [3, 4, 2]
-PEQUEÑAS_IDS = [20, 11, 1, 9]
-MEDIANAS_IDS = [0]
-GRANDES_IDS = []
 
+# Rutas de las carpetas con archivos .atsp
+DIR_MUY_PEQUENAS = "./instancias/muy_pequeñas"
+DIR_PEQUENAS = "./instancias/pequeñas" 
+DIR_MEDIANAS = "./instancias/medianas"
+DIR_GRANDES  = "./instancias/grandes"
+
+# Configuración de ejecución
 TIEMPO_LIMITE_SEC = 3600
-ARCHIVO_RESULTADOS = "resultados_atsp.csv"
-CARPETAS_DATA = ["pequeñas", "medianas", "grandes"]
+ARCHIVO_RESULTADOS = "resultados_atsp_tsplib.csv"
+
+# --- NUEVO: VARIABLE DE DEBUG ---
+# Si es True, imprime resumen de la matriz tras parsear
+DEBUG_PARSE = True 
 
 # ==========================================
-# 2. PLACEHOLDERS DE SOLVERS
-# ==========================================
-# def solve_mtz_gurobi(num_nodos, matriz_distancias, tiempo_limite):
-#     return {
-#         "NumVars": 0, "NumConstrs": 0, "TimeSeconds": 0.0,
-#         "MIPGap": 100.0, "BestBound": 0.0, "ObjectiveValue": 0.0,
-#         "Status": "NOT_IMPLEMENTED"
-#     }
-
-# def solve_mtz_cplex(num_nodos, matriz_distancias, tiempo_limite):
-#     return {
-#         "NumVars": 0, "NumConstrs": 0, "TimeSeconds": 0.0,
-#         "MIPGap": 100.0, "BestBound": 0.0, "ObjectiveValue": 0.0,
-#         "Status": "NOT_IMPLEMENTED"
-#     }
-
-def solve_gg_gurobi(num_nodos, matriz_distancias, tiempo_limite):
-    return {
-        "NumVars": 0, "NumConstrs": 0, "TimeSeconds": 0.0,
-        "MIPGap": 100.0, "BestBound": 0.0, "ObjectiveValue": 0.0,
-        "Status": "NOT_IMPLEMENTED"
-    }
-
-def solve_gg_cplex(num_nodos, matriz_distancias, tiempo_limite):
-    return {
-        "NumVars": 0, "NumConstrs": 0, "TimeSeconds": 0.0,
-        "MIPGap": 100.0, "BestBound": 0.0, "ObjectiveValue": 0.0,
-        "Status": "NOT_IMPLEMENTED"
-    }
-
-# ==========================================
-# 3. FUNCIONES AUXILIARES
+# 3. PARSER TSPLIB (.atsp) Y UTILS
 # ==========================================
 
-def buscar_archivo_instancia(instance_id):
-    nombre_archivo = f"instance_{instance_id}.csv"
-    for carpeta in CARPETAS_DATA:
-        ruta = os.path.join(carpeta, nombre_archivo)
-        if os.path.exists(ruta):
-            return ruta, carpeta
-    return None, None
-
-def leer_datos_instancia(ruta_archivo):
+def leer_atsp(ruta_archivo):
     """
-    Lee el CSV y retorna:
-    - num_cities (int)
-    - distance_matrix (list of lists)
-    - total_distance (float) -> NUEVO CAMPO
+    Parsea un archivo con formato TSPLIB ATSP.
+    Maneja EDGE_WEIGHT_FORMAT: FULL_MATRIX
     """
-    df = pd.read_csv(ruta_archivo)
-    row = df.iloc[0]
+    dimension = 0
+    matriz = []
     
-    num_cities = int(row['num_cities'])
-    
-    # Convertir string de matriz a lista de listas
-    distance_matrix_str = row['distance_matrix']
-    distance_matrix = ast.literal_eval(distance_matrix_str)
-    
-    # Extraer la mejor distancia conocida (Benchmark)
-    # Si por alguna razón no existe, ponemos -1.0
-    total_distance = float(row.get('total_distance', -1.0))
-    
-    return num_cities, distance_matrix, total_distance
+    try:
+        with open(ruta_archivo, 'r') as f:
+            lines = f.readlines()
+
+        # 1. Leer Metadatos
+        start_reading_data = False
+        raw_numbers = []
+
+        for line in lines:
+            line = line.strip()
+            if line == "EOF": break
+                
+            if line.startswith("DIMENSION"):
+                parts = line.split(":")
+                dimension = int(parts[1].strip())
+                
+            elif line.startswith("EDGE_WEIGHT_SECTION"):
+                start_reading_data = True
+                continue
+            
+            if start_reading_data:
+                tokens = line.split()
+                for token in tokens:
+                    # Validar que sea número (maneja negativos si los hubiera)
+                    if token.lstrip('-').isdigit():
+                        raw_numbers.append(int(token))
+
+        # 2. Validaciones y Construcción
+        if dimension == 0:
+            raise ValueError("No se encontró DIMENSION.")
+        
+        expected_size = dimension * dimension
+        
+        # Ajuste robusto de datos
+        if len(raw_numbers) > expected_size:
+             raw_numbers = raw_numbers[:expected_size]
+        elif len(raw_numbers) < expected_size:
+             raise ValueError(f"Datos incompletos: {len(raw_numbers)}/{expected_size}")
+
+        # Convertir lista plana a Matriz NxN
+        for i in range(dimension):
+            fila = raw_numbers[i * dimension : (i + 1) * dimension]
+            matriz.append(fila)
+
+        # En formato .atsp el óptimo no viene en el archivo
+        total_distance = -1.0 
+
+        return dimension, matriz, total_distance
+
+    except Exception as e:
+        print(f"Error parseando {ruta_archivo}: {e}")
+        return 0, [], -1.0
+
+def imprimir_resumen_instancia(nombre, n, matriz):
+    """Imprime un resumen visual estilo numpy si DEBUG_PARSE es True."""
+    size = n * n
+    print(f"\n[DEBUG] Instancia: {nombre}")
+    print(f"        Nodos: {n}")
+    print(f"        Tamaño Matriz: {size} elementos")
+    print(f"        Vista Previa Matriz:")
+
+    def fmt_row(row):
+        # Formatea una fila mostrando solo inicio y fin si es muy larga
+        if len(row) > 6:
+            return f"[{', '.join(map(str, row[:3]))}, ..., {', '.join(map(str, row[-3:]))}]"
+        return str(row)
+
+    if n > 6:
+        # Imprimir primeras 3 filas
+        for i in range(3):
+            print(f"          {fmt_row(matriz[i])}")
+        print("          ...")
+        # Imprimir últimas 3 filas
+        for i in range(n-3, n):
+            print(f"          {fmt_row(matriz[i])}")
+    else:
+        # Imprimir todo si es pequeña
+        for row in matriz:
+            print(f"          {str(row)}")
+    print("-" * 40)
+
+# ==========================================
+# 4. GESTIÓN DE CSV Y RESULTADOS
+# ==========================================
 
 def inicializar_csv_resultados():
     encabezados = [
-        "InstanceID",
-        "Grupo",
+        "InstanceID",      # Nombre del archivo sin extensión
+        "Grupo",           # Pequeña, Mediana, Grande
         "NumNodos",
-        "Matrix_Size",           # NUEVO: Cantidad de elementos en la matriz
-        "Original_Total_Distance", # NUEVO: Benchmark del dataset
+        "Matrix_Size",     # NUEVO CAMPO
+        "Benchmark_Optimum", 
         "Modelo",
         "Solver",
         "NumVars",
@@ -116,64 +155,80 @@ def guardar_fila_resultado(datos_fila):
         writer.writerow(datos_fila)
 
 # ==========================================
-# 4. LOOP PRINCIPAL
+# 5. ORQUESTADOR PRINCIPAL
 # ==========================================
+
+def obtener_archivos_de_carpeta(carpeta):
+    patron = os.path.join(carpeta, "*.atsp")
+    archivos = glob.glob(patron)
+    archivos.sort()
+    return archivos
 
 def ejecutar_flujo():
     inicializar_csv_resultados()
     
-    todas_las_instancias = [
-        (pid, "Pequeña") for pid in PEQUEÑAS_IDS
-    ] + [
-        (mid, "Mediana") for mid in MEDIANAS_IDS
-    ] + [
-        (gid, "Grande") for gid in GRANDES_IDS
-    ]
+    archivos_mypeq = obtener_archivos_de_carpeta(DIR_MUY_PEQUENAS)
+    archivos_peq = obtener_archivos_de_carpeta(DIR_PEQUENAS)
+    archivos_med = obtener_archivos_de_carpeta(DIR_MEDIANAS)
+    archivos_gra = obtener_archivos_de_carpeta(DIR_GRANDES)
 
-    print(f"--- Iniciando procesamiento ---")
+    cola_trabajo = []
+    for f in archivos_mypeq: cola_trabajo.append((f, "VerySmall"))
+    for f in archivos_peq: cola_trabajo.append((f, "Small"))
+    for f in archivos_med: cola_trabajo.append((f, "Medium"))
+    for f in archivos_gra: cola_trabajo.append((f, "Big"))
 
-    for instance_id, grupo_etiqueta in todas_las_instancias:
-        print(f"\n> Procesando Instancia ID: {instance_id} ({grupo_etiqueta})")
+    print(f"--- Iniciando procesamiento de {len(cola_trabajo)} archivos ATSP ---")
+    if DEBUG_PARSE:
+        print("--- MODO DEBUG ACTIVADO: Se mostrarán detalles de matrices ---")
+
+    for ruta_archivo, grupo_etiqueta in cola_trabajo:
+        # 1. Obtener ID limpio (sin extensión .atsp)
+        nombre_completo = os.path.basename(ruta_archivo)
+        instance_id = os.path.splitext(nombre_completo)[0] # NUEVO: Elimina .atsp
         
-        ruta, _ = buscar_archivo_instancia(instance_id)
-        if not ruta:
-            print(f"  [ERROR] Archivo no encontrado. Saltando...")
-            continue
-            
-        try:
-            # 1. Leer datos incluyendo el total_distance original
-            n_nodos, matriz_dist, dist_original = leer_datos_instancia(ruta)
-            
-            # 2. Calcular tamaño de la matriz (elementos totales)
-            # Asumimos matriz cuadrada n x n
-            matriz_size = len(matriz_dist) * len(matriz_dist[0]) if matriz_dist else 0
-            
-            print(f"  Nodos: {n_nodos} | Benchmark: {dist_original} | Tamaño Matriz: {matriz_size}")
-            
-        except Exception as e:
-            print(f"  [ERROR] Lectura de datos: {e}")
+        print(f"\n> Procesando: {instance_id} ({grupo_etiqueta})")
+        
+        # 2. Leer Instancia
+        n_nodos, matriz_dist, benchmark = leer_atsp(ruta_archivo)
+        
+        if n_nodos == 0:
+            print("  [SKIP] Error en lectura de archivo.")
             continue
 
+        # 3. Calcular tamaño de matriz
+        matrix_size = n_nodos * n_nodos # NUEVO: Cantidad total de elementos
+
+        # 4. Debug Print (Si está activado)
+        if DEBUG_PARSE:
+            imprimir_resumen_instancia(instance_id, n_nodos, matriz_dist)
+        else:
+            print(f"  Nodos: {n_nodos} | Matrix Size: {matrix_size}")
+
+        # 5. Definir Experimentos
         experimentos = [
             ("MTZ", "Gurobi", solve_mtz_gurobi),
             ("MTZ", "CPLEX",  solve_mtz_cplex),
+            ("MTZ", "CBC", solve_mtz_cbc),
             ("GG",  "Gurobi", solve_gg_gurobi),
-            ("GG",  "CPLEX",  solve_gg_cplex)
+            ("GG",  "CPLEX",  solve_gg_cplex),
+            ("GG", "CBC", solve_gg_cbc)
         ]
 
+        # 6. Ejecutar Solvers
         for mod_name, solv_name, func_solver in experimentos:
-            print(f"    Ejecutando {mod_name} - {solv_name}...", end=" ")
+            print(f"    Ejecutando {mod_name} - {solv_name}...", end=" ", flush=True)
             
             try:
                 res = func_solver(n_nodos, matriz_dist, TIEMPO_LIMITE_SEC)
-                print("OK.")
+                print(f"OK. (Status: {res.get('Status')})")
                 
                 fila = {
-                    "InstanceID": instance_id,
+                    "InstanceID": instance_id, # ID limpio
                     "Grupo": grupo_etiqueta,
                     "NumNodos": n_nodos,
-                    "Matrix_Size": matriz_size,             # NUEVO
-                    "Original_Total_Distance": dist_original, # NUEVO
+                    "Matrix_Size": matrix_size, # NUEVO
+                    "Benchmark_Optimum": benchmark, 
                     "Modelo": mod_name,
                     "Solver": solv_name,
                     "NumVars": res.get("NumVars"),
@@ -189,9 +244,14 @@ def ejecutar_flujo():
                 guardar_fila_resultado(fila)
                 
             except Exception as e:
-                print(f"ERROR: {e}")
+                print(f"ERROR CRÍTICO: {e}")
 
-    print(f"\n--- Fin. Resultados en {ARCHIVO_RESULTADOS} ---")
+    print(f"\n--- Fin del proceso. Resultados guardados en {ARCHIVO_RESULTADOS} ---")
 
 if __name__ == "__main__":
+    # Verificación de carpetas
+    for d in [DIR_PEQUENAS, DIR_MEDIANAS, DIR_GRANDES]:
+        if not os.path.exists(d):
+            print(f"Advertencia: La carpeta {d} no existe.")
+    
     ejecutar_flujo()
