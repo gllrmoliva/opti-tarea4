@@ -209,10 +209,10 @@ def ejecutar_flujo():
         experimentos = [
             ("MTZ", "Gurobi", solve_mtz_gurobi),
             ("MTZ", "CPLEX",  solve_mtz_cplex),
-            ("MTZ", "CBC", solve_mtz_cbc),
+            # ("MTZ", "CBC", solve_mtz_cbc),
             ("GG",  "Gurobi", solve_gg_gurobi),
-            ("GG",  "CPLEX",  solve_gg_cplex),
-            ("GG", "CBC", solve_gg_cbc)
+            ("GG",  "CPLEX",  solve_gg_cplex)
+            # ("GG", "CBC", solve_gg_cbc)
         ]
 
         # 6. Ejecutar Solvers
