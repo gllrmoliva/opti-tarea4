@@ -1,5 +1,4 @@
 # Tarea4 Optimizacion
-Tarea que consiste en implementar el modelo matemático que resuelve el problema de job shop flexible, propuesto por Fattahi et al. 2007. 
 
 ## Requisitos
 - Utilizar versión 3.9 de python (se puede utilizar conda o pyenv)
